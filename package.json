@@ -1,9 +1,8 @@
 {
   "type": "module",
-  "name": "test",
+  "name": "sbc",
   "version": "1.00",
   "main": "index.js",
-  "licence": "MIT",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node index.js"
@@ -11,6 +10,9 @@
   "license": "ISC",
   "dependencies": {
     "@metaplex-foundation/js": "^0.19.5",
+    "@metaplex-foundation/mpl-token-metadata": "^3.1.0",
+    "@metaplex-foundation/umi": "^0.8.9",
+    "@metaplex-foundation/umi-bundle-defaults": "^0.8.9",
     "@solana/spl-token": "^0.3.8",
     "@solana/web3.js": "^1.87.3",
     "bs58": "^5.0.0"
