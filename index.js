@@ -2,7 +2,11 @@ import {
   Connection,
   PublicKey,
   Keypair,
-  LAMPORTS_PER_SOL
+  LAMPORTS_PER_SOL,
+  Transaction,
+  sendAndConfirmTransaction,
+  // confirmTransaction,
+  // sendRawTransaction
 } from "@solana/web3.js"
 import {
   Metaplex,
@@ -54,8 +58,6 @@ const metaplex = Metaplex.make(connection, { cluster: NETWORK })
     providerUrl: RPC,
     timeout: 60000,
   }));
-
-
 
 const balance = await connection.getBalance(user.publicKey);
 console.log("Current balance is", balance / LAMPORTS_PER_SOL);
@@ -136,9 +138,45 @@ async function mintMasterEdition(uri) {
   return nft;
 }
 
-async function approveTokenDelegate(metaplex, nft) {
+async function delegateAndLockToken(nft) {
 
-  await metaplex.nfts().delegate({
+  const delegateTransaction = await makeDelegate(nft);
+  const lockTransaction = await makeLockTransaction(nft);
+
+  const transaction = new Transaction().add(
+    ...delegateTransaction,
+    ...lockTransaction
+  )
+
+  const bh = await connection.getLatestBlockhash();
+  transaction.feePayer = user.publicKey;
+  transaction.recentBlockhash = bh.blockhash;
+  transaction.lastValidBlockHeight = bh.lastValidBlockHeight
+
+  console.log("====><=====",transaction,"====><=====");
+  const serializedTransaction =  transaction.serialize({
+    requireAllSignatures: false,
+    verifySignatures: true
+  })
+// console.log("serial");
+
+  await sendAndConfirmTransaction(connection, transaction, [user, admin])
+
+  // const signature = await connection.sendRawTransaction(serializedTransaction, {
+  //   skipPreflight: false,
+  //   preflightCommitment: 'recent',
+  // });
+  
+  // await connection.confirmTransaction(signature);
+  
+  // console.log('Transaction confirmed:', signature);
+}
+
+async function makeDelegate(nft) {
+
+  metaplex.use(keypairIdentity(user));
+
+  const delegateTransaction = metaplex.nfts().builders().delegate({
     nftOrSft: nft,
     authority: user,
     delegate: {
@@ -148,14 +186,16 @@ async function approveTokenDelegate(metaplex, nft) {
       data: { amount: 1 }
     }
   });
+
+  const delegateTransactions = delegateTransaction.getInstructions();
+  return delegateTransactions;
 }
 
-async function lockAsset(nft, mintAddress) {
+async function makeLockTransaction(nft) {
 
-  const metaplex = new Metaplex(connection);
   metaplex.use(keypairIdentity(admin));
 
-  await metaplex.nfts().lock({
+  const lockTransaction = metaplex.nfts().builders().lock({
     nftOrSft: nft,
     authority: {
       __kind: 'tokenDelegate',
@@ -164,6 +204,9 @@ async function lockAsset(nft, mintAddress) {
       owner: user.publicKey,
     }
   });
+
+  const lockTransactions = lockTransaction.getInstructions();
+  return lockTransactions;
 }
 
 async function main() {
@@ -175,17 +218,14 @@ async function main() {
   // const nft = await mintMasterEdition(uri);
 
   // const mintAddress = new PublicKey(nft.address);
-  // console.log("==>",mintAddress);
+  // console.log("==>", mintAddress);
 
-  // console.log(`step3. approve token delegate`);
-  // await approveTokenDelegate(metaplex, nft);
-
-  const mintAddress = new PublicKey("5dBNduD6LAVKuXQXQLtpg4mdXM7bCxT3ouKG2DtftN7E");
+  const mintAddress = new PublicKey("DySWwgRQaXLXMZ8Lcr89RiyZKuzAtDC1zxNxgA3WBKUd");
   const nft = await metaplex.nfts().findByMint({ mintAddress })
-  console.log('===>', mintAddress);
+  
+  console.log(`step3. approve token delegate`);
+  await delegateAndLockToken(nft);
 
-  console.log(`step4. lock asset`);
-  await lockAsset(nft, mintAddress);
 }
 
 main()
