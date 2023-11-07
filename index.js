@@ -4,9 +4,7 @@ import {
   Keypair,
   LAMPORTS_PER_SOL,
   Transaction,
-  sendAndConfirmTransaction,
-  // confirmTransaction,
-  // sendRawTransaction
+  sendAndConfirmTransaction
 } from "@solana/web3.js"
 import {
   Metaplex,
@@ -36,8 +34,8 @@ const admin = Keypair.fromSecretKey(Uint8Array.from([
   138, 34, 23, 85, 202, 20, 149, 188, 199
 ]));
 
-// user authority (account 1)
-const user = Keypair.fromSecretKey(Uint8Array.from([
+// owner authority (account 1)
+const owner = Keypair.fromSecretKey(Uint8Array.from([
   87, 9, 143, 118, 48, 235, 192, 210, 206, 116, 38,
   152, 172, 111, 201, 138, 209, 229, 181, 218, 144, 196,
   189, 247, 160, 239, 24, 202, 21, 216, 175, 86, 61,
@@ -52,14 +50,14 @@ const RPC = "https://api.devnet.solana.com";
 const connection = new Connection(RPC);
 
 const metaplex = Metaplex.make(connection, { cluster: NETWORK })
-  .use(keypairIdentity(user))
+  .use(keypairIdentity(owner))
   .use(bundlrStorage({
     address: 'https://devnet.bundlr.network',
     providerUrl: RPC,
     timeout: 60000,
   }));
 
-const balance = await connection.getBalance(user.publicKey);
+const balance = await connection.getBalance(owner.publicKey);
 console.log("Current balance is", balance / LAMPORTS_PER_SOL);
 
 async function uploadMetadata(nftData) {
@@ -110,7 +108,7 @@ async function uploadMetadata(nftData) {
 async function mintMasterEdition(uri) {
 
   const metaplex = new Metaplex(connection);
-  metaplex.use(keypairIdentity(user));
+  metaplex.use(keypairIdentity(owner));
 
   const { nft } = await metaplex.nfts().create({
     uri,
@@ -121,7 +119,7 @@ async function mintMasterEdition(uri) {
     creators: [
       {
         address: new PublicKey("57C7AjpVyicmNpE4HdbkgaoXfTo64D9j3H4c15e65CLZ"),
-        authority: user,
+        authority: owner,
         share: 100,
       },
     ],
@@ -149,40 +147,32 @@ async function delegateAndLockToken(nft) {
   )
 
   const bh = await connection.getLatestBlockhash();
-  transaction.feePayer = user.publicKey;
+  transaction.feePayer = owner.publicKey;
   transaction.recentBlockhash = bh.blockhash;
   transaction.lastValidBlockHeight = bh.lastValidBlockHeight
 
   console.log("====><=====",transaction,"====><=====");
+  
   const serializedTransaction =  transaction.serialize({
     requireAllSignatures: false,
     verifySignatures: true
   })
-// console.log("serial");
 
-  await sendAndConfirmTransaction(connection, transaction, [user, admin])
+  await sendAndConfirmTransaction(connection, transaction, [owner, admin])
 
-  // const signature = await connection.sendRawTransaction(serializedTransaction, {
-  //   skipPreflight: false,
-  //   preflightCommitment: 'recent',
-  // });
-  
-  // await connection.confirmTransaction(signature);
-  
-  // console.log('Transaction confirmed:', signature);
 }
 
 async function makeDelegate(nft) {
 
-  metaplex.use(keypairIdentity(user));
+  metaplex.use(keypairIdentity(owner));
 
   const delegateTransaction = metaplex.nfts().builders().delegate({
     nftOrSft: nft,
-    authority: user,
+    authority: owner,
     delegate: {
       type: "UtilityV1",
       delegate: admin.publicKey,
-      owner: user.publicKey,
+      owner: owner.publicKey,
       data: { amount: 1 }
     }
   });
@@ -201,7 +191,7 @@ async function makeLockTransaction(nft) {
       __kind: 'tokenDelegate',
       type: "UtilityV1",
       delegate: admin,
-      owner: user.publicKey,
+      owner: owner.publicKey,
     }
   });
 
