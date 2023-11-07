@@ -47,13 +47,20 @@ const RPC = "https://api.devnet.solana.com";
 
 const connection = new Connection(RPC);
 
-const metaplex = new Metaplex(connection);
-metaplex.use(keypairIdentity(user));
+const metaplex = Metaplex.make(connection, { cluster: NETWORK })
+  .use(keypairIdentity(user))
+  .use(bundlrStorage({
+    address: 'https://devnet.bundlr.network',
+    providerUrl: RPC,
+    timeout: 60000,
+  }));
+
+
 
 const balance = await connection.getBalance(user.publicKey);
 console.log("Current balance is", balance / LAMPORTS_PER_SOL);
 
-async function uploadMetadata(nftData){
+async function uploadMetadata(nftData) {
   // file to buffer
   const buffer = fs.readFileSync(nftData.imageFile)
 
@@ -99,6 +106,9 @@ async function uploadMetadata(nftData){
 }
 
 async function mintMasterEdition(uri) {
+
+  const metaplex = new Metaplex(connection);
+  metaplex.use(keypairIdentity(user));
 
   const { nft } = await metaplex.nfts().create({
     uri,
@@ -158,31 +168,24 @@ async function lockAsset(nft, mintAddress) {
 
 async function main() {
 
-  // const metaplex = Metaplex.make(connection, { cluster: NETWORK })
-  //   .use(keypairIdentity(user))
-  //   .use(bundlrStorage({
-  //     address: 'https://devnet.bundlr.network',
-  //     providerUrl: RPC,
-  //     timeout: 60000,
-  //   }));
+  // console.log(`step1. upload metadata`);
+  // const uri = await uploadMetadata(nftData[0])
 
-  console.log(`step1. upload metadata`);
-  const uri = await uploadMetadata(nftData[0])
+  // console.log(`step2. mint master edition`);
+  // const nft = await mintMasterEdition(uri);
 
-  console.log(`step2. mint master edition`);
-  const nft = await mintMasterEdition( uri);
-
-  const mintAddress = new PublicKey(nft.address);
+  // const mintAddress = new PublicKey(nft.address);
+  // console.log("==>",mintAddress);
 
   // console.log(`step3. approve token delegate`);
   // await approveTokenDelegate(metaplex, nft);
 
-  // const mintAddress = new PublicKey("CogZNpkTa2nfNWASzApD2Dh1dt7rDD1aL86UnPgoHMio");
-  // const nft = await metaplex.nfts().findByMint({ mintAddress })
-  // console.log('===>', nft);
+  const mintAddress = new PublicKey("5dBNduD6LAVKuXQXQLtpg4mdXM7bCxT3ouKG2DtftN7E");
+  const nft = await metaplex.nfts().findByMint({ mintAddress })
+  console.log('===>', mintAddress);
 
-  // console.log(`step4. lock asset`);
-  // await lockAsset(nft, mintAddress);
+  console.log(`step4. lock asset`);
+  await lockAsset(nft, mintAddress);
 }
 
 main()
