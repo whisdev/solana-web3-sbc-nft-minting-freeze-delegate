@@ -1,5 +1,3 @@
-
-import * as web3 from "@solana/web3.js"
 import {
   Connection,
   PublicKey,
@@ -13,11 +11,7 @@ import {
   toMetaplexFile,
 } from "@metaplex-foundation/js"
 
-import { createUmi } from '@metaplex-foundation/umi-bundle-defaults'
-import { lockV1, mplTokenMetadata ,TokenStandard, } from '@metaplex-foundation/mpl-token-metadata'
-
 import * as fs from "fs"
-import { publicKey, signerIdentity } from "@metaplex-foundation/umi"
 
 // example data for a new NFT
 const nftData = [{
@@ -48,22 +42,18 @@ const user = Keypair.fromSecretKey(Uint8Array.from([
   138, 137, 180, 196, 175, 220, 50, 89, 10
 ]));
 
-// const NETWORK = "mainnet-beta";
-// const RPC = "https://solana-mainnet.g.alchemy.com/v2/pp946jWG51JnX947vqCBmJOYoE1p61au";
 const NETWORK = "devnet";
 const RPC = "https://api.devnet.solana.com";
 
 const connection = new Connection(RPC);
 
+const metaplex = new Metaplex(connection);
+metaplex.use(keypairIdentity(user));
+
 const balance = await connection.getBalance(user.publicKey);
 console.log("Current balance is", balance / LAMPORTS_PER_SOL);
 
-async function uploadMetadata(
-  metaplex,
-  nftData
-)
-// : Promise<string>
-{
+async function uploadMetadata(nftData){
   // file to buffer
   const buffer = fs.readFileSync(nftData.imageFile)
 
@@ -72,10 +62,8 @@ async function uploadMetadata(
 
   // upload image and get image uri
   const imageUri = await metaplex.storage().upload(file)
-  // const imageUri = "https://ik.imagekit.io/u92vdglg9/spritebox/dracula.png";
   console.log("image uri:", imageUri);
 
-  // upload metadata and get metadata uri (off chain metadata)
   const { uri } = await metaplex.nfts().uploadMetadata({
     name: nftData.name,
     symbol: nftData.symbol,
@@ -110,22 +98,11 @@ async function uploadMetadata(
   return uri
 }
 
-async function mintMasterEdition(
-  uri
-) {
-  const metaplex = new Metaplex(connection);
-  metaplex.use(keypairIdentity(user));
+async function mintMasterEdition(uri) {
 
-  // const feePayerAirdropSignature = await connection.requestAirdrop(
-  //   keypair.publicKey,
-  //   LAMPORTS_PER_SOL
-  // );
-  // await connection.confirmTransaction(feePayerAirdropSignature);
   const { nft } = await metaplex.nfts().create({
     uri,
     name: "SBC #1",
-    // updateAuthority: admin,
-    // admin: admin,
     symbol: "SBC",
     sellerFeeBasisPoints: 500,
     isMutable: false,
@@ -144,24 +121,9 @@ async function mintMasterEdition(
     }
   );
 
-  // const mintAddress = nft.address
-
   console.log(`Minted Master Edition: ${nft.address}`);
 
   return nft;
-}
-
-async function getAssociatedTokenAccount(owner, mintAddress) {
-  const tokenAddress = (PublicKey.findProgramAddressSync(
-    [
-      owner.toBuffer(),
-      TOKEN_PROGRAM_ID.toBuffer(),
-      mintAddress.toBuffer()
-    ],
-    ASSOCIATED_TOKEN_PROGRAM_ID
-  ))[0];
-
-  return tokenAddress
 }
 
 async function approveTokenDelegate(metaplex, nft) {
@@ -178,11 +140,10 @@ async function approveTokenDelegate(metaplex, nft) {
   });
 }
 
-// collectionv1, salev1, transferv1, datav1, utilityv1, stakingv1, standardv1, lockedtransferv1, programmableconfigv1, authorityitemv1, dataitemv1, collectiontiemv1, programmableconfigitemv1
 async function lockAsset(nft, mintAddress) {
 
   const metaplex = new Metaplex(connection);
-  metaplex.use(keypairIdentity(user));
+  metaplex.use(keypairIdentity(admin));
 
   await metaplex.nfts().lock({
     nftOrSft: nft,
@@ -197,68 +158,34 @@ async function lockAsset(nft, mintAddress) {
 
 async function main() {
 
-  const metaplex = Metaplex.make(connection, { cluster: NETWORK })
-    .use(keypairIdentity(user))
-    .use(bundlrStorage({
-      // address: 'https://node1.bundlr.network',
-      address: 'https://devnet.bundlr.network',
-      providerUrl: RPC,
-      timeout: 60000,
-    }));
+  // const metaplex = Metaplex.make(connection, { cluster: NETWORK })
+  //   .use(keypairIdentity(user))
+  //   .use(bundlrStorage({
+  //     address: 'https://devnet.bundlr.network',
+  //     providerUrl: RPC,
+  //     timeout: 60000,
+  //   }));
 
   console.log(`step1. upload metadata`);
-  const uri = await uploadMetadata(metaplex, nftData[0])
+  const uri = await uploadMetadata(nftData[0])
 
   console.log(`step2. mint master edition`);
   const nft = await mintMasterEdition( uri);
 
-  // const mintAddress = new PublicKey(nft.address);
+  const mintAddress = new PublicKey(nft.address);
 
-  // console.log(`step3. unlock token`);
-  // // await unlockAsset(nft);
-
-  // console.log(`step4. approve token delegate`);
+  // console.log(`step3. approve token delegate`);
   // await approveTokenDelegate(metaplex, nft);
 
   // const mintAddress = new PublicKey("CogZNpkTa2nfNWASzApD2Dh1dt7rDD1aL86UnPgoHMio");
   // const nft = await metaplex.nfts().findByMint({ mintAddress })
   // console.log('===>', nft);
 
-  // console.log(`step5. lock asset`);
+  // console.log(`step4. lock asset`);
   // await lockAsset(nft, mintAddress);
 }
 
-async function forUnlock() {
-
-  const metaplex = new Metaplex(connection);
-  metaplex.use(keypairIdentity(admin));
-  const mintAddress = new PublicKey("CogZNpkTa2nfNWASzApD2Dh1dt7rDD1aL86UnPgoHMio");
-  const nft = await metaplex.nfts().findByMint({ mintAddress });
-
-  // console.log(`step1. unlock asset`);
-  // await metaplex.nfts().unlock({
-  //   nftOrSft: nft,
-  //   authority: {
-  //     __kind: 'tokenDelegate',
-  //     type: "UtilityV1",
-  //     delegate: admin,
-  //     owner: user.publicKey,
-  //   }
-  // });
-
-  await metaplex.nfts().revoke({
-    nftOrSft:nft,
-    authority: user,
-    delegate: {
-        type: 'UtilityV1',
-        delegate: admin.publicKey,
-        owner: user.publicKey,
-    },
-  })
-}
-
-// main()
-forUnlock()
+main()
   .then(() => {
     console.log("Finished successfully")
     process.exit(0)
